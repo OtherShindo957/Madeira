@@ -43,6 +43,9 @@ wine-headers)
   mkdir -p wine/build-macos
   (
     cd wine/build-macos
+    export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+    export CFLAGS="-isysroot $SDKROOT"
+    export LDFLAGS="-isysroot $SDKROOT"
     CC="$(xcrun -f clang)" ../configure --enable-win64 --enable-archs=none \
       --without-x --without-freetype --without-gnutls --without-gstreamer \
       --without-vulkan

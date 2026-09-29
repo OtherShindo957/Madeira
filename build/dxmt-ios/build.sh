@@ -104,6 +104,18 @@ compile_madeira_c() {
     fi
 }
 
+# Reproduce the airconv bitcode/header generators from the pinned Meson
+# recipe. These LLVM input modules use airconv's macOS14 target triple;
+# the directly loaded command metallib below is compiled for iOS instead.
+mkdir -p "$BUILD_DIR/shader-headers"
+for shader in air_msad air_samplepos air_tessellation; do
+    xcrun -sdk macosx metal -std=metal3.1 --target=air64-apple-macos14.0 \
+        -c "$DXMT_SRC/airconv/shaders/$shader.metal" \
+        -o "$BUILD_DIR/shader-headers/$shader.air"
+    xxd -n "$shader" -i "$BUILD_DIR/shader-headers/$shader.air" \
+        "$BUILD_DIR/shader-headers/$shader.h"
+done
+
 echo "=== winemetal unix (Objective-C) ==="
 compile_objc "$DXMT_SRC/winemetal/unix/winemetal_unix.c" winemetal_unix
 compile_objc "$DXMT_SRC/winemetal/unix/cache.c"          cache
