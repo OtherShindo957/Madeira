@@ -1,0 +1,72 @@
+name: Build Madeira IPA (draft)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/build-ipa.yml'
+      - 'scripts/ci/**'
+      - 'docs/BUILD_IPA.md'
+      - 'app/Madeira.xcodeproj/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: madeira-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check required native inputs
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          python3 scripts/ci/check-ipa-inputs.py 2>&1 | tee artifacts/preflight.txt
+      - name: Upload prerequisite report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: madeira-ipa-prerequisites
+          path: artifacts/preflight.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  build:
+    # Do not spend macOS runner minutes while known prerequisites are missing.
+    needs: preflight
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Build and package unsigned app
+        run: bash scripts/ci/build-unsigned-ipa.sh
+      - name: Upload unsigned IPA and signing entitlements
+        uses: actions/upload-artifact@v4
+        with:
+          name: Madeira-unsigned
+          path: |
+            artifacts/Madeira-unsigned.ipa
+            artifacts/Madeira-unsigned.ipa.sha256
+            artifacts/Madeira.entitlements
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: madeira-xcode-log
+          path: artifacts/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 14
