@@ -1,0 +1,71 @@
+name: Build Madeira IPA
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/build-ipa.yml'
+      - 'scripts/ci/**'
+      - 'build/**'
+      - 'docs/BUILD_IPA.md'
+      - 'app/Madeira.xcodeproj/**'
+permissions:
+  contents: read
+concurrency:
+  group: madeira-ipa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Initialize pinned source submodules
+        run: |
+          git submodule update --init --depth 1 FEX wine research/dxmt
+          git -C FEX submodule update --init --depth 1 External/fmt External/xxhash External/range-v3 External/unordered_dense
+          git -C research/dxmt submodule update --init --recursive --depth 1
+      - name: Install build tools
+        run: brew install cmake ninja llvm bison autoconf automake libtool pkg-config nasm
+      - name: Build FEX for iOS
+        run: bash scripts/ci/bootstrap-native.sh fex
+      - name: Generate Wine headers
+        run: bash scripts/ci/bootstrap-native.sh wine-headers
+      - name: Build GnuTLS stack
+        run: bash scripts/ci/bootstrap-native.sh crypto
+      - name: Build FreeType and WMA decoder libraries
+        run: bash scripts/ci/bootstrap-native.sh media
+      - name: Build Wine native libraries
+        run: bash scripts/ci/bootstrap-native.sh wine-native
+      - name: Build LLVM shader translation libraries
+        run: bash scripts/ci/bootstrap-native.sh llvm
+      - name: Build DXMT and combine shader libraries
+        run: bash scripts/ci/bootstrap-native.sh dxmt
+      - name: Check prerequisites and build unsigned IPA
+        run: bash scripts/ci/build-unsigned-ipa.sh
+      - name: Upload unsigned IPA and entitlements
+        uses: actions/upload-artifact@v4
+        with:
+          name: Madeira-unsigned
+          path: |
+            artifacts/Madeira-unsigned.ipa
+            artifacts/Madeira-unsigned.ipa.sha256
+            artifacts/Madeira.entitlements
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: madeira-build-logs
+          path: |
+            artifacts/*.log
+            build/**/*.err
+            build/**/err-*.txt
+            build/gnutls-ios/obj/*.log
+            wine/build-macos/config.log
+            toolchains/ffmpeg-build/ffbuild/config.log
+            FEX/build-ios/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
+          retention-days: 14

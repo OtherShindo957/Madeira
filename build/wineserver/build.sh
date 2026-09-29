@@ -12,16 +12,6 @@ SHIMS_DIR="$REPO_ROOT/build/ntdll-unix/shims"
 OBJ_DIR="$BUILD_DIR/obj"
 mkdir -p "$OBJ_DIR"
 
-# Copy the base library if we don't have one yet
-if [ ! -f "$OBJ_DIR/libwineserver.a" ]; then
-    if [ -f "$APP_LIB" ]; then
-        cp "$APP_LIB" "$OBJ_DIR/libwineserver.a"
-    else
-        echo "ERROR: No base libwineserver.a found"
-        exit 1
-    fi
-fi
-
 CC_FLAGS=(
     -arch arm64 -isysroot "$SDK" -miphoneos-version-min=17.0 -O2
     -I"$WINE_SRC/include" -I"$WINE_SRC/include/wine"
@@ -100,6 +90,30 @@ PATCHED_FILES=(
     # copy adds the [srv-conn]/[tcp-state]/[tcp-enum] probes.
     "sock:$WINE_SRC/server/sock.c:sock.o"
 )
+
+# Construct the base from the complete pinned Wine source list. Never retain
+# unknown objects from an old developer archive. Partial rebuilds still require
+# an existing archive; full builds reconstruct it every time.
+if [ "${1:-all}" = all ]; then
+    BASE_OBJECTS=()
+    while IFS= read -r source; do
+        name="${source%.c}"
+        patched=false
+        for entry in "${PATCHED_FILES[@]}"; do
+            if [ "${entry##*:}" = "$name.o" ]; then patched=true; break; fi
+        done
+        if [ "$patched" = false ]; then
+            compile_one "$WINE_SRC/server/$source" "$name"
+            BASE_OBJECTS+=("$OBJ_DIR/$name.o")
+        fi
+    done < <(python3 "$REPO_ROOT/scripts/ci/wineserver-sources.py" "$WINE_SRC/server/Makefile.in")
+    [ "${#BASE_OBJECTS[@]}" -gt 0 ] || { echo 'No wineserver sources found' >&2; exit 1; }
+    rm -f "$OBJ_DIR/libwineserver.a"
+    xcrun --sdk iphoneos ar rcs "$OBJ_DIR/libwineserver.a" "${BASE_OBJECTS[@]}"
+elif [ ! -f "$OBJ_DIR/libwineserver.a" ]; then
+    echo 'Run a full wineserver build before a partial rebuild.' >&2
+    exit 1
+fi
 
 echo "=== Building kill wrapper (without kill macro) ==="
 echo -n "  wineserver_ios_kill... "
