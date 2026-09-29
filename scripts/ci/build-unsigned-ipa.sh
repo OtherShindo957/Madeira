@@ -1,5 +1,5 @@
 #!/bin/bash
-# Package an already prepared source tree; dependency bootstrapping is not implemented.
+# Package the source tree after bootstrap-native.sh completes.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 if [[ "$(uname -s)" != Darwin ]]; then
@@ -18,7 +18,7 @@ mkdir -p "$artifact_dir"
 xcodebuild -project app/Madeira.xcodeproj -target Madeira \
   -configuration Release -sdk iphoneos \
   "CONFIGURATION_BUILD_DIR=$out/products" "OBJROOT=$out/obj" \
-  ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+  ARCHS=arm64 ONLY_ACTIVE_ARCH=NO IPHONEOS_DEPLOYMENT_TARGET=18.0 \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
   DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
   build 2>&1 | tee artifacts/xcodebuild.log
