@@ -27,6 +27,7 @@ fex)
     -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_SYSTEM_PROCESSOR=arm64 \
     -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_SYSROOT=iphoneos \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=18.0 -DCMAKE_BUILD_TYPE=Release \
+    "-DCMAKE_CXX_FLAGS=-include $root/scripts/ci/fex-apple-diagnostics.h" \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DBUILD_TESTING=OFF -DBUILD_FEXCONFIG=OFF -DBUILD_THUNKS=OFF \
     -DENABLE_LTO=OFF -DENABLE_CCACHE=OFF -DENABLE_GDB_SYMBOLS=OFF \
@@ -46,7 +47,7 @@ wine-headers)
       --without-x --without-freetype --without-gnutls --without-gstreamer \
       --without-vulkan
     make -j"$jobs" __tooldeps__
-    make -j"$jobs" include
+    make -j"$jobs" include/all
   )
   # ntdll's dwrite compilation uses this legacy generated-header location.
   mkdir -p wine/build-arm64ec
